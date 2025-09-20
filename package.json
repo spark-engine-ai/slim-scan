@@ -1,0 +1,136 @@
+{
+  "name": "slimscan",
+  "version": "1.0.0",
+  "description": "A cross-platform desktop app for CAN SLIM stock scanning",
+  "main": "out/main/main.js",
+  "homepage": "./",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electronmon .\"",
+    "build:renderer": "npx vite build",
+    "build:main": "npx -p typescript tsc -p tsconfig.json",
+    "build": "npm run build:renderer && npm run build:main",
+    "start": "electron .",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "pack:unpacked": "npm run build && electron-builder --dir",
+    "pack:mac": "npm run build && electron-builder --mac --dir",
+    "pack:win": "npx electron-builder --win --dir",
+    "pack:linux": "npm run build && electron-builder --linux --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npx electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "author": "SlimScan",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "electronmon": "^2.0.2",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "playwright": "^1.40.1",
+    "prettier": "^3.1.1",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3",
+    "vite": "^4.5.0",
+    "vitest": "^1.1.0",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "better-sqlite3": "^9.2.2",
+    "electron-store": "^8.1.0",
+    "keytar": "^7.9.0",
+    "node-cron": "^3.0.3",
+    "openai": "^5.20.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "recharts": "^2.8.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "build": {
+    "appId": "com.slimscan.app",
+    "productName": "SlimScan",
+    "electronVersion": "28.0.0",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "nodeGypRebuild": false,
+    "npmRebuild": true,
+    "extraResources": [
+      "assets/**/*"
+    ],
+    "icon": "assets/slimscan-logo.png",
+    "compression": "maximum",
+    "publish": null,
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "verifyUpdateCodeSignature": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
