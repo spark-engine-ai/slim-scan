@@ -118,3 +118,6 @@ playwright-report/
 # API keys and secrets (if any config files exist)
 config/local.json
 config/production.json
+
+# Windows NUL file (problematic for git)
+NUL
