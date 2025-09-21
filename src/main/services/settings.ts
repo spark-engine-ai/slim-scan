@@ -29,6 +29,13 @@ interface AppSettings {
       RS_pct: number;
       S_volSpike: number;
     };
+    ibdFilters: {
+      enabled: boolean;
+      minRsRating: number;
+      minUpDownRatio: number;
+      minAdRating: string;
+      minComposite: number;
+    };
     marketGate: {
       use: boolean;
       spySymbol: string;
@@ -62,6 +69,13 @@ const defaultSettings: AppSettings = {
       N_pct52w: 0.85,
       RS_pct: 80,
       S_volSpike: 1.5,
+    },
+    ibdFilters: {
+      enabled: false,          // Start disabled to not break existing scans
+      minRsRating: 80,         // IBD recommends 80+
+      minUpDownRatio: 1.0,     // 1.0+ shows net accumulation
+      minAdRating: 'C',        // C or better (avoid D/E)
+      minComposite: 70,        // 70+ is solid, 90+ is exceptional
     },
     marketGate: {
       use: true,

@@ -4,7 +4,23 @@ import { ResultsTable } from './ResultsTable';
 import { useScan } from '../../store/useScan';
 
 export function ScanPage() {
-  const { results, loading, error } = useScan();
+  const { results, loading, error, loadResults, runScan } = useScan();
+
+  // Run a live scan to get fresh data when the page opens
+  const [hasTriggeredScan, setHasTriggeredScan] = React.useState(false);
+
+  React.useEffect(() => {
+    if (results.length === 0 && !loading && !hasTriggeredScan) {
+      console.log('ScanPage: Running live scan for fresh data');
+      setHasTriggeredScan(true);
+      // Always run a new live scan instead of loading old cached results
+      runScan('daily').catch((error) => {
+        console.error('Failed to run live scan:', error);
+        // If scan fails, allow retrying later
+        setHasTriggeredScan(false);
+      });
+    }
+  }, [results.length, loading, runScan, hasTriggeredScan]);
 
   return (
     <div className="scan-page">

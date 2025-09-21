@@ -71,6 +71,24 @@ export class PaperTradingService {
     this.baseUrl = liveMode ? 'https://api.alpaca.markets' : 'https://paper-api.alpaca.markets';
   }
 
+  isMarketOpen(): boolean {
+    const now = new Date();
+    const et = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const day = et.getDay(); // 0 = Sunday, 6 = Saturday
+    const hour = et.getHours();
+    const minute = et.getMinutes();
+
+    // Weekend check
+    if (day === 0 || day === 6) return false;
+
+    // Market hours: 9:30 AM - 4:00 PM ET
+    const marketStart = 9 * 60 + 30; // 9:30 in minutes
+    const marketEnd = 16 * 60; // 4:00 PM in minutes
+    const currentTime = hour * 60 + minute;
+
+    return currentTime >= marketStart && currentTime < marketEnd;
+  }
+
   private async getHeaders() {
     const keyId = await getSecret('alpaca_key_id_api_key');
     const secretKey = await getSecret('alpaca_secret_key_api_key');
@@ -93,9 +111,25 @@ export class PaperTradingService {
         headers,
         timeout: 5000
       });
+
+      // Log account status for debugging
+      if (response.data) {
+        logger.info('Alpaca Account Status', {
+          status: response.data.status,
+          trading_blocked: response.data.trading_blocked,
+          account_blocked: response.data.account_blocked,
+          day_trade_count: response.data.day_trade_count,
+          pattern_day_trader: response.data.pattern_day_trader
+        });
+      }
+
       return response.status === 200;
-    } catch (error) {
-      logger.error('Alpaca connection test failed', error);
+    } catch (error: any) {
+      logger.error('Alpaca connection test failed', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       return false;
     }
   }
@@ -143,6 +177,48 @@ export class PaperTradingService {
     }
   }
 
+  async cancelAllOrdersForSymbol(symbol: string): Promise<boolean> {
+    try {
+      const headers = await this.getHeaders();
+
+      // Get all open orders
+      const ordersResponse = await axios.get(`${this.baseUrl}/v2/orders?status=open`, {
+        headers
+      });
+
+      const orders = ordersResponse.data || [];
+      const symbolOrders = orders.filter((order: any) => order.symbol === symbol);
+
+      // Cancel each order for this symbol
+      for (const order of symbolOrders) {
+        try {
+          await axios.delete(`${this.baseUrl}/v2/orders/${order.id}`, { headers });
+          logger.info(`Cancelled order ${order.id} for ${symbol}`);
+        } catch (error) {
+          logger.error(`Failed to cancel order ${order.id}:`, error);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to cancel orders for symbol', { symbol, error });
+      return false;
+    }
+  }
+
+  async getOrderStatus(orderId: string): Promise<AlpacaOrder | null> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await axios.get(`${this.baseUrl}/v2/orders/${orderId}`, {
+        headers
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('Failed to get order status', { orderId, error });
+      return null;
+    }
+  }
+
   async submitOrder(params: {
     symbol: string;
     qty: number;
@@ -155,6 +231,11 @@ export class PaperTradingService {
     client_order_id?: string;
   }): Promise<AlpacaOrder | null> {
     try {
+      // Check market hours and warn user
+      const isOpen = this.isMarketOpen();
+      if (!isOpen) {
+        logger.warn(`Market is closed. Order for ${params.symbol} will be queued until market open (9:30 AM ET)`);
+      }
       const orderData = {
         symbol: params.symbol,
         qty: params.qty.toString(),
@@ -173,12 +254,71 @@ export class PaperTradingService {
       });
 
       logger.info(`Order submitted: ${params.side} ${params.qty} ${params.symbol}`, {
-        orderId: response.data.id
+        orderId: response.data.id,
+        status: response.data.status,
+        marketOpen: isOpen
       });
 
+      // Log detailed order status
+      if (response.data.status !== 'filled') {
+        logger.info(`Order ${response.data.id} status: ${response.data.status} - will execute when market opens`);
+      }
+
       return response.data;
-    } catch (error) {
-      logger.error('Failed to submit order', { params, error });
+    } catch (error: any) {
+      const errorDetails = {
+        params,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      };
+      logger.error('Failed to submit order', errorDetails);
+
+      // Log the full Alpaca error response for debugging
+      if (error.response?.data) {
+        logger.error('Alpaca API Error Details', error.response.data);
+
+        // Handle wash trade detection specifically
+        if (error.response.data.code === 40310000) {
+          logger.warn(`Wash trade detected for ${params.symbol}. Existing order: ${error.response.data.existing_order_id}`);
+
+          // Attempt to cancel conflicting orders and retry
+          logger.info(`Attempting to cancel conflicting orders for ${params.symbol}`);
+          const cancelled = await this.cancelAllOrdersForSymbol(params.symbol);
+
+          if (cancelled) {
+            logger.info(`Retrying order after canceling conflicting orders`);
+
+            // Wait a moment for cancellations to process
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Retry the original order
+            try {
+              const retryResponse = await axios.post(`${this.baseUrl}/v2/orders`, {
+                symbol: params.symbol,
+                qty: params.qty.toString(),
+                side: params.side,
+                type: params.type,
+                time_in_force: params.time_in_force,
+                ...(params.limit_price && { limit_price: params.limit_price.toString() }),
+                ...(params.stop_price && { stop_price: params.stop_price.toString() }),
+                ...(params.trail_percent && { trail_percent: params.trail_percent.toString() }),
+                ...(params.client_order_id && { client_order_id: params.client_order_id })
+              }, { headers: await this.getHeaders() });
+
+              logger.info(`Order retry successful: ${params.side} ${params.qty} ${params.symbol}`, {
+                orderId: retryResponse.data.id
+              });
+
+              return retryResponse.data;
+            } catch (retryError: any) {
+              logger.error('Order retry failed', retryError.response?.data || retryError.message);
+            }
+          }
+        }
+      }
+
       return null;
     }
   }

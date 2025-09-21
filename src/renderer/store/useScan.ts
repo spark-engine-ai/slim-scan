@@ -25,17 +25,19 @@ export const useScan = create<ScanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const scanId = await window.electronAPI.scan.run({ mode });
+      console.log(`Scan completed with ID: ${scanId}`);
       const results = await window.electronAPI.scan.results({ scanId });
-      set({ 
-        results, 
-        currentScanId: scanId, 
-        loading: false 
+      console.log(`RunScan received ${results?.length || 0} results for scan ${scanId}:`, results);
+      set({
+        results,
+        currentScanId: scanId,
+        loading: false
       });
     } catch (error) {
       console.error('Failed to run scan:', error);
-      set({ 
-        loading: false, 
-        error: 'Failed to run scan' 
+      set({
+        loading: false,
+        error: 'Failed to run scan'
       });
     }
   },
@@ -44,16 +46,17 @@ export const useScan = create<ScanState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const results = await window.electronAPI.scan.results({ scanId });
-      set({ 
-        results, 
-        currentScanId: scanId, 
-        loading: false 
+      console.log(`Frontend received ${results?.length || 0} results for scan ${scanId}:`, results);
+      set({
+        results,
+        currentScanId: scanId,
+        loading: false
       });
     } catch (error) {
       console.error('Failed to load scan results:', error);
-      set({ 
-        loading: false, 
-        error: 'Failed to load scan results' 
+      set({
+        loading: false,
+        error: 'Failed to load scan results'
       });
     }
   },

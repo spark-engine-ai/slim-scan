@@ -1,9 +1,13 @@
 import React from 'react';
 import { useScan } from '../../store/useScan';
 import { PriceChart } from '../Charts/PriceChart';
+import { formatNumber, formatPercent } from '../../utils/format';
 
 export function TickerDrawer() {
-  const { selectedSymbol, selectSymbol } = useScan();
+  const { selectedSymbol, selectSymbol, results } = useScan();
+
+  // Find the selected result data
+  const selectedResult = results.find(result => result.symbol === selectedSymbol);
 
   if (!selectedSymbol) return null;
 
@@ -101,20 +105,64 @@ export function TickerDrawer() {
         
         <div className="metrics-grid">
           <div className="metric-card">
-            <div className="metric-label">52W High</div>
-            <div className="metric-value">$125.50</div>
+            <div className="metric-label">Price</div>
+            <div className="metric-value">
+              {selectedResult?.price ? `$${selectedResult.price >= 1 ? formatNumber(selectedResult.price, 2) : formatNumber(selectedResult.price, 4)}` : 'N/A'}
+            </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">RS Rating</div>
-            <div className="metric-value">85</div>
+            <div className="metric-label">% 52W High</div>
+            <div className="metric-value">
+              {selectedResult?.pct_52w ? formatPercent(selectedResult.pct_52w) : 'N/A'}
+            </div>
           </div>
           <div className="metric-card">
-            <div className="metric-label">EPS Growth</div>
-            <div className="metric-value">+28%</div>
+            <div className="metric-label">RS %</div>
+            <div className="metric-value">
+              {selectedResult?.rs_pct ? `${formatNumber(selectedResult.rs_pct, 0)}%` : 'N/A'}
+            </div>
           </div>
           <div className="metric-card">
             <div className="metric-label">Volume Spike</div>
-            <div className="metric-value">2.1x</div>
+            <div className="metric-value">
+              {selectedResult?.vol_spike ? `${formatNumber(selectedResult.vol_spike, 1)}x` : 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">EPS QoQ Growth</div>
+            <div className="metric-value">
+              {selectedResult?.c_qoq ? formatPercent(selectedResult.c_qoq) : 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">EPS 3Y CAGR</div>
+            <div className="metric-value">
+              {selectedResult?.a_cagr ? formatPercent(selectedResult.a_cagr) : 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">IBD RS Rating</div>
+            <div className="metric-value">
+              {selectedResult?.ibd_rs_rating || 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">IBD U/D Ratio</div>
+            <div className="metric-value">
+              {selectedResult?.ibd_up_down_ratio ? formatNumber(selectedResult.ibd_up_down_ratio, 1) : 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">IBD A/D Rating</div>
+            <div className="metric-value">
+              {selectedResult?.ibd_ad_rating || 'N/A'}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">IBD Composite</div>
+            <div className="metric-value">
+              {selectedResult?.ibd_composite || 'N/A'}
+            </div>
           </div>
         </div>
       </div>

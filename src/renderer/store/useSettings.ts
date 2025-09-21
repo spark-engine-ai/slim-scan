@@ -33,6 +33,13 @@ const defaultSettings: AppSettings = {
       RS_pct: 80,
       S_volSpike: 1.5,
     },
+    ibdFilters: {
+      enabled: false,          // Start disabled to not break existing scans
+      minRsRating: 80,         // IBD recommends 80+
+      minUpDownRatio: 1.0,     // 1.0+ shows net accumulation
+      minAdRating: 'C',        // C or better (avoid D/E)
+      minComposite: 70,        // 70+ is solid, 90+ is exceptional
+    },
     marketGate: {
       use: true,
       spySymbol: 'SPY',

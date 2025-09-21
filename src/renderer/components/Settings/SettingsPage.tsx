@@ -121,6 +121,33 @@ export function SettingsPage() {
     }
   };
 
+  const updateIbdFilters = async (updates: Partial<NonNullable<typeof localSettings>['scanConfig']['ibdFilters']>) => {
+    if (localSettings) {
+      // Initialize IBD filters with defaults if they don't exist
+      const currentIbdFilters = localSettings.scanConfig.ibdFilters || {
+        enabled: false,
+        minRsRating: 80,
+        minUpDownRatio: 1.0,
+        minAdRating: 'C',
+        minComposite: 70
+      };
+
+      const newSettings = {
+        ...localSettings,
+        scanConfig: {
+          ...localSettings.scanConfig,
+          ibdFilters: {
+            ...currentIbdFilters,
+            ...updates
+          }
+        }
+      };
+      setLocalSettings(newSettings);
+      // Auto-save the settings
+      await updateSettings(newSettings);
+    }
+  };
+
   if (!localSettings) {
     return <div>Loading settings...</div>;
   }
@@ -516,7 +543,110 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
-      
+
+      <div className="settings-section">
+        <h2 className="section-title">🔍 IBD-Style Filters (Optional)</h2>
+        <div className="form-group">
+          <label className="form-label settings-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              checked={localSettings.scanConfig.ibdFilters?.enabled || false}
+              onChange={(e) => updateIbdFilters({ enabled: e.target.checked })}
+            />
+            Enable IBD-Style Filtering
+          </label>
+          <span style={{ fontSize: '12px', color: '#666', display: 'block', marginLeft: '24px' }}>
+            Apply additional filters based on IBD methodology for enhanced accuracy
+          </span>
+        </div>
+
+        {(localSettings.scanConfig.ibdFilters?.enabled || false) && (
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label settings-label">
+                Min IBD RS Rating
+                <span style={{ fontSize: '11px', color: '#666', display: 'block', fontWeight: 'normal' }}>
+                  1-99 scale, IBD recommends 80+
+                </span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="99"
+                className="input settings-input threshold-input"
+                value={localSettings.scanConfig.ibdFilters?.minRsRating || 80}
+                onChange={(e) => updateIbdFilters({ minRsRating: Number(e.target.value) })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label settings-label">
+                Min Up/Down Ratio
+                <span style={{ fontSize: '11px', color: '#666', display: 'block', fontWeight: 'normal' }}>
+                  1.0+ shows net accumulation
+                </span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                className="input settings-input threshold-input"
+                value={localSettings.scanConfig.ibdFilters?.minUpDownRatio || 1.0}
+                onChange={(e) => updateIbdFilters({ minUpDownRatio: Number(e.target.value) })}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label settings-label">
+                Min A/D Rating
+                <span style={{ fontSize: '11px', color: '#666', display: 'block', fontWeight: 'normal' }}>
+                  A-E scale, avoid D/E ratings
+                </span>
+              </label>
+              <select
+                className="select settings-select"
+                style={{ width: '100px' }}
+                value={localSettings.scanConfig.ibdFilters?.minAdRating || 'C'}
+                onChange={(e) => updateIbdFilters({ minAdRating: e.target.value })}
+              >
+                <option value="A">A (Best)</option>
+                <option value="B">B (Good)</option>
+                <option value="C">C (Fair)</option>
+                <option value="D">D (Poor)</option>
+                <option value="E">E (Worst)</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label settings-label">
+                Min Composite Score
+                <span style={{ fontSize: '11px', color: '#666', display: 'block', fontWeight: 'normal' }}>
+                  1-99 scale, 70+ is solid, 90+ exceptional
+                </span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="99"
+                className="input settings-input threshold-input"
+                value={localSettings.scanConfig.ibdFilters?.minComposite || 70}
+                onChange={(e) => updateIbdFilters({ minComposite: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+        )}
+
+        <div style={{
+          marginTop: '16px',
+          padding: '12px',
+          backgroundColor: 'var(--color-background-secondary)',
+          borderRadius: '6px',
+          border: '1px solid var(--color-border)',
+          fontSize: '12px',
+          color: 'var(--color-text-secondary)'
+        }}>
+          <strong>Note:</strong> IBD-style metrics are approximations calculated from available market data.
+          They enhance the core CAN SLIM methodology without replacing it. Disable if you prefer pure CAN SLIM filtering.
+        </div>
+      </div>
+
       <div className="settings-section">
         <h2 className="section-title">Liquidity Filters</h2>
         <div className="form-grid">

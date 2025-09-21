@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { scanEngine } from './services/scan-engine';
 import { getSettings, setSettings } from './services/settings';
+import { getRecentScans } from './services/db';
 import { universeManager } from './services/universe-manager';
 import { fetchChartData } from './services/chart-data';
 import { runBacktest } from './services/backtest';
@@ -23,6 +24,10 @@ const ScanResultsSchema = z.object({
 const ScanExportSchema = z.object({
   scanId: z.number(),
   format: z.enum(['csv', 'json']),
+});
+
+const RecentScansSchema = z.object({
+  limit: z.number().optional(),
 });
 
 const ChartFetchSchema = z.object({
@@ -102,6 +107,11 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('scan:export', async (_event, payload) => {
     const validated = ScanExportSchema.parse(payload);
     return await scanEngine.exportResults(validated.scanId, validated.format);
+  });
+
+  ipcMain.handle('scan:getRecentScans', async (_event, payload) => {
+    const validated = RecentScansSchema.parse(payload || {});
+    return getRecentScans(validated.limit || 10);
   });
 
   ipcMain.handle('settings:get', async () => {

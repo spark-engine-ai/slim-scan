@@ -84,7 +84,7 @@ function createTables(): void {
     )
   `);
 
-  // Scan results
+  // Scan results - Create base table first
   db.exec(`
     CREATE TABLE IF NOT EXISTS scan_results (
       scan_id INTEGER,
@@ -103,6 +103,9 @@ function createTables(): void {
     )
   `);
 
+  // Migrate scan_results table to new schema
+  migrateScanResultsTable();
+
   // Backtests
   db.exec(`
     CREATE TABLE IF NOT EXISTS backtests (
@@ -117,6 +120,51 @@ function createTables(): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_prices_symbol_date ON prices (symbol, date)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scan_results_score ON scan_results (scan_id, score DESC)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_eps_symbol_qend ON eps_quarterly (symbol, qend)`);
+}
+
+function migrateScanResultsTable(): void {
+  try {
+    // Check if the new columns exist
+    const tableInfo = db.pragma(`table_info(scan_results)`) as any[];
+    const columnNames = tableInfo.map((col: any) => col.name);
+
+    const requiredColumns = ['name', 'price', 'sector', 'industry', 'ibd_rs_rating', 'ibd_up_down_ratio', 'ibd_ad_rating', 'ibd_composite'];
+    const missingColumns = requiredColumns.filter(col => !columnNames.includes(col));
+
+    if (missingColumns.length > 0) {
+      console.log(`Migrating scan_results table, adding columns: ${missingColumns.join(', ')}`);
+
+      // Add missing columns one by one
+      for (const column of missingColumns) {
+        let columnDef = '';
+        switch (column) {
+          case 'name':
+          case 'sector':
+          case 'industry':
+          case 'ibd_ad_rating':
+            columnDef = `${column} TEXT`;
+            break;
+          case 'price':
+          case 'ibd_up_down_ratio':
+            columnDef = `${column} REAL`;
+            break;
+          case 'ibd_rs_rating':
+          case 'ibd_composite':
+            columnDef = `${column} INTEGER`;
+            break;
+        }
+
+        try {
+          db.exec(`ALTER TABLE scan_results ADD COLUMN ${columnDef}`);
+          console.log(`Added column ${column} to scan_results`);
+        } catch (error) {
+          console.warn(`Failed to add column ${column}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to migrate scan_results table:', error);
+  }
 }
 
 // Symbol operations
@@ -138,6 +186,11 @@ export function upsertSymbols(symbols: SymbolRow[]): void {
 export function getSymbols(): SymbolRow[] {
   const stmt = db.prepare('SELECT * FROM symbols ORDER BY symbol');
   return stmt.all() as SymbolRow[];
+}
+
+export function getSymbol(symbol: string): SymbolRow | null {
+  const stmt = db.prepare('SELECT * FROM symbols WHERE symbol = ?');
+  return stmt.get(symbol) as SymbolRow | null;
 }
 
 export function upsertSymbol(symbol: SymbolRow): void {
@@ -249,16 +302,17 @@ export function createScan(universe: string, provider: string, config: object): 
 
 export function saveScanResults(scanId: number, results: ScanResult[]): void {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO scan_results 
-    (scan_id, symbol, score, rs_pct, pct_52w, vol_spike, c_qoq, a_cagr, i_delta, flags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO scan_results
+    (scan_id, symbol, name, price, score, rs_pct, pct_52w, vol_spike, c_qoq, a_cagr, i_delta, flags, sector, industry, ibd_rs_rating, ibd_up_down_ratio, ibd_ad_rating, ibd_composite)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const transaction = db.transaction((results: ScanResult[]) => {
     for (const result of results) {
       stmt.run(
-        scanId, result.symbol, result.score, result.rs_pct, result.pct_52w,
-        result.vol_spike, result.c_qoq, result.a_cagr, result.i_delta, result.flags
+        scanId, result.symbol, result.name, result.price, result.score, result.rs_pct, result.pct_52w,
+        result.vol_spike, result.c_qoq, result.a_cagr, result.i_delta, result.flags, result.sector, result.industry,
+        result.ibd_rs_rating || null, result.ibd_up_down_ratio || null, result.ibd_ad_rating || null, result.ibd_composite || null
       );
     }
   });
@@ -268,17 +322,17 @@ export function saveScanResults(scanId: number, results: ScanResult[]): void {
 
 export function getScanResults(scanId: number): any[] {
   const stmt = db.prepare(`
-    SELECT sr.*, s.symbol as symbol_name, s.name, s.sector, s.industry,
-           p.close as price
-    FROM scan_results sr
-    JOIN symbols s ON sr.symbol = s.symbol
-    LEFT JOIN prices p ON sr.symbol = p.symbol 
-    WHERE sr.scan_id = ?
-    AND p.date = (SELECT MAX(date) FROM prices WHERE symbol = sr.symbol)
-    ORDER BY sr.score DESC
+    SELECT * FROM scan_results
+    WHERE scan_id = ?
+    ORDER BY score DESC
   `);
-  
-  return stmt.all(scanId);
+
+  const results = stmt.all(scanId);
+  console.log(`Database query for scanId ${scanId} returned ${results.length} results`);
+  if (results.length > 0) {
+    console.log(`Sample result from database:`, results[0]);
+  }
+  return results;
 }
 
 export function getRecentScans(limit = 10): any[] {

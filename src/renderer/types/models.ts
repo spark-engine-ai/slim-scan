@@ -12,6 +12,11 @@ export interface ScanResult {
   flags: string;
   sector: string;
   industry: string;
+  // IBD-style metrics (optional for backward compatibility)
+  ibd_rs_rating?: number;        // 1-99, relative strength rating
+  ibd_up_down_ratio?: number;    // 50-day up/down volume ratio
+  ibd_ad_rating?: string;        // A-E, accumulation/distribution rating
+  ibd_composite?: number;        // 1-99, composite score
 }
 
 export interface ChartData {
@@ -112,6 +117,13 @@ export interface AppSettings {
       N_pct52w: number;
       RS_pct: number;
       S_volSpike: number;
+    };
+    ibdFilters: {
+      enabled: boolean;
+      minRsRating: number;        // 1-99, minimum RS rating (default: 80)
+      minUpDownRatio: number;     // minimum up/down volume ratio (default: 1.0)
+      minAdRating: string;        // A-E, minimum A/D rating (default: 'C')
+      minComposite: number;       // 1-99, minimum composite score (default: 70)
     };
     marketGate: {
       use: boolean;

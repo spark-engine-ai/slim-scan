@@ -9,6 +9,8 @@ const api = {
       ipcRenderer.invoke('scan:results', payload),
     export: (payload: IpcChannels['scan:export']) =>
       ipcRenderer.invoke('scan:export', payload),
+    getRecentScans: (payload: { limit?: number }) =>
+      ipcRenderer.invoke('scan:getRecentScans', payload),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

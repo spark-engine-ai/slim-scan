@@ -56,11 +56,11 @@ export function ResultsTable({ results }: ResultsTableProps) {
           font-size: var(--font-size-sm);
           color: var(--color-text-secondary);
         }
-        
+
         .table-body {
           min-height: 0;
         }
-        
+
         .data-row {
           display: grid;
           grid-template-columns: 1fr 80px 80px 80px 80px 100px 100px 80px 200px 100px;
@@ -157,7 +157,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
             </div>
             
             <div className="text-right price">
-              ${formatNumber(result.price)}
+              ${result.price >= 1 ? formatNumber(result.price, 2) : formatNumber(result.price, 4)}
             </div>
             
             <div className="text-center">
@@ -189,7 +189,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
                 {formatNumber(result.vol_spike, 1)}x
               </span>
             </div>
-            
+
             <div>
               <FactorChips result={result} />
             </div>
