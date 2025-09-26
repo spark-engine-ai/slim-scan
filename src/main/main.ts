@@ -120,7 +120,9 @@ app.whenReady().then(async () => {
 
   // Auto-refresh universe on startup
   try {
-    await universeManager.refreshUniverse();
+    // Use provider-based universe refresh instead of hardcoded lists
+    const { refreshUniverse } = await import('./services/universe');
+    await refreshUniverse();
     console.log('Universe refreshed successfully');
   } catch (error) {
     console.warn('Failed to auto-refresh universe on startup:', error);

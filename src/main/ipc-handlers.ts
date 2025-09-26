@@ -96,12 +96,30 @@ const ChatMessageSchema = z.object({
 export function setupIpcHandlers(): void {
   ipcMain.handle('scan:run', async (_event, payload) => {
     const validated = ScanRunSchema.parse(payload);
+    console.log(`🚀 IPC: Scan run request for mode ${validated.mode}`);
     return await scanEngine.run(validated);
+  });
+
+  ipcMain.handle('scan:status', async () => {
+    const isRunning = scanEngine.isScanning();
+    console.log(`🔍 IPC: Scan status check - running: ${isRunning}`);
+    return { isRunning };
   });
 
   ipcMain.handle('scan:results', async (_event, payload) => {
     const validated = ScanResultsSchema.parse(payload);
-    return await scanEngine.getResults(validated.scanId);
+    console.log(`🔍 IPC: Frontend requesting results for scan ${validated.scanId}`);
+    const results = await scanEngine.getResults(validated.scanId);
+    console.log(`🔍 IPC: Returning ${results?.length || 0} results to frontend`);
+    return results;
+  });
+
+  ipcMain.handle('scan:current-results', async () => {
+    console.log(`🔍 IPC: Frontend requesting current scan results`);
+    const { getCurrentScanResults } = await import('./services/db');
+    const results = getCurrentScanResults();
+    console.log(`🔍 IPC: Returning ${results?.length || 0} current results to frontend`);
+    return results;
   });
 
   ipcMain.handle('scan:export', async (_event, payload) => {
@@ -124,7 +142,9 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('universe:refresh', async (_event, payload) => {
     const validated = UniverseRefreshSchema.parse(payload || {});
-    return await universeManager.refreshUniverse(validated.source);
+    // Use the provider-based universe refresh instead of hardcoded lists
+    const { refreshUniverse } = await import('./services/universe');
+    return await refreshUniverse();
   });
 
   ipcMain.handle('universe:stats', async () => {

@@ -84,6 +84,33 @@ function createTables(): void {
     )
   `);
 
+  // Current scan results - simple table that gets replaced each batch
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS current_scan_results (
+      symbol TEXT PRIMARY KEY,
+      name TEXT,
+      price REAL,
+      score REAL,
+      rs_pct REAL,
+      pct_52w REAL,
+      vol_spike REAL,
+      c_qoq REAL,
+      a_cagr REAL,
+      i_delta REAL,
+      flags TEXT,
+      sector TEXT,
+      industry TEXT,
+      ibd_rs_rating INTEGER,
+      ibd_up_down_ratio REAL,
+      ibd_ad_rating TEXT,
+      ibd_composite INTEGER,
+      qualified INTEGER,
+      disqualification_reasons TEXT,
+      batch_number INTEGER DEFAULT 0,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Scan results - Create base table first
   db.exec(`
     CREATE TABLE IF NOT EXISTS scan_results (
@@ -128,7 +155,7 @@ function migrateScanResultsTable(): void {
     const tableInfo = db.pragma(`table_info(scan_results)`) as any[];
     const columnNames = tableInfo.map((col: any) => col.name);
 
-    const requiredColumns = ['name', 'price', 'sector', 'industry', 'ibd_rs_rating', 'ibd_up_down_ratio', 'ibd_ad_rating', 'ibd_composite'];
+    const requiredColumns = ['name', 'price', 'sector', 'industry', 'ibd_rs_rating', 'ibd_up_down_ratio', 'ibd_ad_rating', 'ibd_composite', 'qualified', 'disqualification_reasons'];
     const missingColumns = requiredColumns.filter(col => !columnNames.includes(col));
 
     if (missingColumns.length > 0) {
@@ -142,6 +169,7 @@ function migrateScanResultsTable(): void {
           case 'sector':
           case 'industry':
           case 'ibd_ad_rating':
+          case 'disqualification_reasons':
             columnDef = `${column} TEXT`;
             break;
           case 'price':
@@ -151,6 +179,9 @@ function migrateScanResultsTable(): void {
           case 'ibd_rs_rating':
           case 'ibd_composite':
             columnDef = `${column} INTEGER`;
+            break;
+          case 'qualified':
+            columnDef = `${column} BOOLEAN DEFAULT 0`;
             break;
         }
 
@@ -203,7 +234,24 @@ export function upsertSymbol(symbol: SymbolRow): void {
 }
 
 export function deleteUniverseSymbols(): void {
-  db.prepare('DELETE FROM symbols').run();
+  const transaction = db.transaction(() => {
+    // Temporarily disable foreign key constraints
+    db.pragma('foreign_keys = OFF');
+
+    // Delete dependent data first to avoid orphaned records
+    db.prepare('DELETE FROM scan_results').run();
+    db.prepare('DELETE FROM ownership').run();
+    db.prepare('DELETE FROM eps_quarterly').run();
+    db.prepare('DELETE FROM prices').run();
+
+    // Now delete symbols
+    db.prepare('DELETE FROM symbols').run();
+
+    // Re-enable foreign key constraints
+    db.pragma('foreign_keys = ON');
+  });
+
+  transaction();
 }
 
 export function getUniverseSymbols(): string[] {
@@ -302,9 +350,9 @@ export function createScan(universe: string, provider: string, config: object): 
 
 export function saveScanResults(scanId: number, results: ScanResult[]): void {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO scan_results
-    (scan_id, symbol, name, price, score, rs_pct, pct_52w, vol_spike, c_qoq, a_cagr, i_delta, flags, sector, industry, ibd_rs_rating, ibd_up_down_ratio, ibd_ad_rating, ibd_composite)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO scan_results
+    (scan_id, symbol, name, price, score, rs_pct, pct_52w, vol_spike, c_qoq, a_cagr, i_delta, flags, sector, industry, ibd_rs_rating, ibd_up_down_ratio, ibd_ad_rating, ibd_composite, qualified, disqualification_reasons)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const transaction = db.transaction((results: ScanResult[]) => {
@@ -312,12 +360,101 @@ export function saveScanResults(scanId: number, results: ScanResult[]): void {
       stmt.run(
         scanId, result.symbol, result.name, result.price, result.score, result.rs_pct, result.pct_52w,
         result.vol_spike, result.c_qoq, result.a_cagr, result.i_delta, result.flags, result.sector, result.industry,
-        result.ibd_rs_rating || null, result.ibd_up_down_ratio || null, result.ibd_ad_rating || null, result.ibd_composite || null
+        result.ibd_rs_rating || null, result.ibd_up_down_ratio || null, result.ibd_ad_rating || null, result.ibd_composite || null,
+        result.qualified ? 1 : 0, result.disqualification_reasons || ''
       );
     }
   });
 
   transaction(results);
+}
+
+// Current scan functions - much simpler approach
+export function clearCurrentScanResults(): void {
+  const stmt = db.prepare('DELETE FROM current_scan_results');
+  stmt.run();
+}
+
+export function saveCurrentScanResults(results: ScanResult[], batchNumber: number): void {
+  console.log(`💾 saveCurrentScanResults: Attempting to save ${results.length} results for batch ${batchNumber}`);
+
+  const deleteStmt = db.prepare('DELETE FROM current_scan_results');
+  const insertStmt = db.prepare(`
+    INSERT INTO current_scan_results
+    (symbol, name, price, score, rs_pct, pct_52w, vol_spike, c_qoq, a_cagr, i_delta, flags, sector, industry, ibd_rs_rating, ibd_up_down_ratio, ibd_ad_rating, ibd_composite, qualified, disqualification_reasons, batch_number)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const transaction = db.transaction((results: ScanResult[], batchNumber: number) => {
+    // Clear existing results
+    const deleteResult = deleteStmt.run();
+    console.log(`💾 Cleared ${deleteResult.changes} existing results from current_scan_results table`);
+
+    // Insert all current results (including new batch)
+    let insertCount = 0;
+    for (const result of results) {
+      try {
+        insertStmt.run(
+          result.symbol, result.name, result.price, result.score, result.rs_pct, result.pct_52w,
+          result.vol_spike, result.c_qoq, result.a_cagr, result.i_delta, result.flags, result.sector, result.industry,
+          result.ibd_rs_rating || null, result.ibd_up_down_ratio || null, result.ibd_ad_rating || null, result.ibd_composite || null,
+          result.qualified ? 1 : 0, result.disqualification_reasons || '', batchNumber
+        );
+        insertCount++;
+      } catch (error) {
+        console.error(`💾 Failed to insert result for ${result.symbol}:`, error);
+      }
+    }
+    console.log(`💾 Successfully inserted ${insertCount} results into current_scan_results table`);
+  });
+
+  try {
+    transaction(results, batchNumber);
+    console.log(`💾 ✅ Transaction completed successfully for batch ${batchNumber}`);
+  } catch (error) {
+    console.error(`💾 ❌ Transaction failed for batch ${batchNumber}:`, error);
+  }
+}
+
+export function getCurrentScanResults(): any[] {
+  console.log(`📊 getCurrentScanResults: Querying current_scan_results table`);
+
+  const stmt = db.prepare(`
+    SELECT * FROM current_scan_results
+    ORDER BY score DESC
+  `);
+
+  try {
+    const results = stmt.all();
+    console.log(`📊 Database query returned ${results.length} raw results`);
+
+    if (results.length > 0) {
+      console.log(`📊 First raw result:`, results[0]);
+    }
+
+    // Convert boolean fields back from database integers
+    const convertedResults = results.map((result: any) => ({
+      ...result,
+      qualified: Boolean(result.qualified),
+      disqualification_reasons: result.disqualification_reasons || ''
+    }));
+
+    console.log(`📊 ✅ getCurrentScanResults returning ${convertedResults.length} converted results`);
+    if (convertedResults.length > 0) {
+      const topSymbols = convertedResults.slice(0, 3).map(r => `${r.symbol}(${r.score})`);
+      console.log(`📊 Top results: ${topSymbols.join(', ')}`);
+    }
+
+    return convertedResults;
+  } catch (error) {
+    console.error(`📊 ❌ getCurrentScanResults query failed:`, error);
+    return [];
+  }
+}
+
+export function clearScanResults(scanId: number): void {
+  const stmt = db.prepare('DELETE FROM scan_results WHERE scan_id = ?');
+  stmt.run(scanId);
 }
 
 export function getScanResults(scanId: number): any[] {
@@ -328,11 +465,19 @@ export function getScanResults(scanId: number): any[] {
   `);
 
   const results = stmt.all(scanId);
-  console.log(`Database query for scanId ${scanId} returned ${results.length} results`);
-  if (results.length > 0) {
-    console.log(`Sample result from database:`, results[0]);
+
+  // Convert boolean fields back from database integers
+  const convertedResults = results.map((result: any) => ({
+    ...result,
+    qualified: Boolean(result.qualified),
+    disqualification_reasons: result.disqualification_reasons || ''
+  }));
+
+  console.log(`Database query for scanId ${scanId} returned ${convertedResults.length} results`);
+  if (convertedResults.length > 0) {
+    console.log(`Sample result from database:`, convertedResults[0]);
   }
-  return results;
+  return convertedResults;
 }
 
 export function getRecentScans(limit = 10): any[] {

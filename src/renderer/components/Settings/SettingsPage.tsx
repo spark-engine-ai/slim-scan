@@ -8,9 +8,6 @@ export function SettingsPage() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [alpacaKeys, setAlpacaKeys] = useState<Record<string, string>>({});
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
-  const [aiSettings, setAiSettings] = useState({
-    enabled: false
-  });
 
   React.useEffect(() => {
     setLocalSettings(settings);
@@ -18,7 +15,6 @@ export function SettingsPage() {
 
   React.useEffect(() => {
     loadApiKeys();
-    loadAiSettings();
   }, []);
 
   const loadApiKeys = async () => {
@@ -47,15 +43,6 @@ export function SettingsPage() {
     }
   };
 
-  const loadAiSettings = async () => {
-    try {
-      // For now, just keep the default AI settings
-      // In the future, this could load from backend
-      console.log('AI settings loaded (using defaults)');
-    } catch (error) {
-      console.error('Failed to load AI settings:', error);
-    }
-  };
 
   const saveApiKey = async (provider: string, apiKey: string) => {
     try {
@@ -396,20 +383,12 @@ export function SettingsPage() {
       <div className="settings-section">
         <h2 className="section-title">🤖 AI Assistant</h2>
         <div className="form-group">
-          <label className="form-label settings-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="checkbox"
-              checked={aiSettings.enabled}
-              onChange={(e) => setAiSettings(prev => ({ ...prev, enabled: e.target.checked }))}
-            />
-            Enable AI Assistant
-          </label>
-          <span style={{ fontSize: '12px', color: '#666', display: 'block', marginLeft: '24px' }}>
-            Activate AI-powered CAN SLIM analysis, forecasting, and trading recommendations
+          <span style={{ fontSize: '14px', color: 'var(--color-text)', display: 'block', marginBottom: '8px' }}>
+            AI-powered CAN SLIM analysis, forecasting, and trading recommendations are always available.
           </span>
         </div>
 
-        {aiSettings.enabled && (
+        {(
           <div className="form-group">
             <div style={{
               padding: '16px',

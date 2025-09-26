@@ -17,6 +17,9 @@ export interface ScanResult {
   ibd_up_down_ratio?: number;    // 50-day up/down volume ratio
   ibd_ad_rating?: string;        // A-E, accumulation/distribution rating
   ibd_composite?: number;        // 1-99, composite score
+  // Qualification status
+  qualified: boolean;            // Whether stock meets all criteria
+  disqualification_reasons: string; // Comma-separated reasons for disqualification
 }
 
 export interface ChartData {

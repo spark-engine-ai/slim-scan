@@ -11,6 +11,8 @@ const api = {
       ipcRenderer.invoke('scan:export', payload),
     getRecentScans: (payload: { limit?: number }) =>
       ipcRenderer.invoke('scan:getRecentScans', payload),
+    status: () => ipcRenderer.invoke('scan:status'),
+    currentResults: () => ipcRenderer.invoke('scan:current-results'),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

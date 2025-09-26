@@ -28,6 +28,11 @@ export function ResultsTable({ results }: ResultsTableProps) {
     setBuyPopup(null);
   };
 
+  const truncateCompanyName = (name: string): string => {
+    if (name.length <= 20) return name;
+    return name.substring(0, 17) + '...';
+  };
+
   return (
     <div className="results-table-container">
       <style>{`
@@ -98,6 +103,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          cursor: help;
         }
         
         .price {
@@ -149,7 +155,13 @@ export function ResultsTable({ results }: ResultsTableProps) {
           >
             <div className="symbol-cell">
               <div className="symbol">{result.symbol}</div>
-              <div className="company-name">{result.name}</div>
+              <div
+                className="company-name"
+                title={result.name}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {truncateCompanyName(result.name)}
+              </div>
             </div>
             
             <div className="text-center">

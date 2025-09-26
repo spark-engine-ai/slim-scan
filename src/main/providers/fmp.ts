@@ -13,18 +13,40 @@ export class FMPProvider implements MarketProvider {
 
   async getUniverse(): Promise<SymbolRow[]> {
     try {
-      const response = await axios.get(`${this.baseUrl}/company-screener`, {
-        params: {
-          marketCapMoreThan: 100000000, // $100M+ market cap
-          exchange: 'NASDAQ,NYSE', // Filter to major exchanges
-          country: 'US',
-          isActivelyTrading: true,
-          limit: 5000,
-          apikey: this.apiKey
-        }
+      const requestUrl = `${this.baseUrl}/company-screener`;
+      const requestParams = {
+        marketCapMoreThan: 100000000, // $100M+ market cap
+        exchange: 'NASDAQ,NYSE', // Filter to major exchanges
+        country: 'US',
+        isActivelyTrading: true,
+        limit: 5000,
+        apikey: this.apiKey
+      };
+
+      console.log('FMP Universe Request:', {
+        url: requestUrl,
+        params: requestParams
       });
 
-      return response.data
+      const response = await axios.get(requestUrl, {
+        params: requestParams
+      });
+
+      console.log('FMP Universe Response Status:', response.status);
+      console.log('FMP Universe Response Headers:', response.headers);
+      console.log('FMP Universe Raw Response Type:', typeof response.data);
+      console.log('FMP Universe Raw Response Length:', Array.isArray(response.data) ? response.data.length : 'Not an array');
+
+      if (Array.isArray(response.data)) {
+        console.log('First 3 raw response items:', response.data.slice(0, 3));
+        if (response.data.length < 100) {
+          console.log('Full response (small):', response.data);
+        }
+      } else {
+        console.log('Full response (not array):', response.data);
+      }
+
+      const mappedResults = response.data
         .map((ticker: any) => ({
           symbol: ticker.symbol,
           name: ticker.companyName || '',
@@ -32,8 +54,18 @@ export class FMPProvider implements MarketProvider {
           industry: ticker.industry || 'Unknown',
           exchange: ticker.exchange
         }));
+
+      console.log('FMP Universe Final Results Count:', mappedResults.length);
+      console.log('First 5 mapped results:', mappedResults.slice(0, 5));
+
+      return mappedResults;
     } catch (error) {
       console.error('Failed to fetch universe from FMP:', error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('FMP Error Response Status:', error.response.status);
+        console.error('FMP Error Response Data:', error.response.data);
+        console.error('FMP Error Response Headers:', error.response.headers);
+      }
       throw error;
     }
   }
