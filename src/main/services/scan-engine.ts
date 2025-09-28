@@ -449,8 +449,8 @@ class ScanEngine {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - 400); // Get ~1.5 years of data
 
-    // Process symbols in chunks of 5 - fetch data AND calculate scores immediately
-    const chunkSize = 5;
+    // Process symbols in chunks of 40 - fetch data AND calculate scores immediately
+    const chunkSize = 40;
     const chunks = this.chunkArray(symbols, chunkSize);
 
     logger.info(`Processing ${symbols.length} symbols in ${chunks.length} chunks with immediate scoring`);
@@ -542,15 +542,15 @@ class ScanEngine {
 
         // Step 5: Add delay between chunks (except for the last chunk)
         if (i < chunks.length - 1) {
-          logger.info(`Waiting 30 seconds before next batch...`);
-          await new Promise(resolve => setTimeout(resolve, 30000));
+          logger.info(`Waiting 10 seconds before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
         }
 
       } catch (error) {
         logger.error(`Failed to process batch ${i + 1}`, error);
         // Continue with next batch even if this one failed
         if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 30000));
+          await new Promise(resolve => setTimeout(resolve, 10000));
         }
       }
     }
