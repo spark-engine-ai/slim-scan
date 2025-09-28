@@ -72,8 +72,12 @@ class ScanEngine {
       if (symbols.length === 0) {
         throw new Error('No symbols in universe. Please refresh universe first.');
       }
-      
+
       logger.info(`Scanning ${symbols.length} symbols from ${universe} universe`);
+      logger.info(`First 10 symbols to scan: ${symbols.slice(0, 10).join(', ')}`);
+      if (symbols.length > 10) {
+        logger.info(`Last 10 symbols to scan: ${symbols.slice(-10).join(', ')}`);
+      }
       
       // Create scan record for historical purposes
       const scanId = createScan(universe, provider.name, scanConfig);
